@@ -127,6 +127,15 @@ class IPAClient:
         return res.get('result', {})
 
 
-def generate_password(length=8):
-    """Generate a numeric password of given length."""
-    return ''.join(random.choices(string.digits, k=length))
+CHARSETS = {
+    'digits': string.digits,
+    'letters': string.ascii_letters,
+    'mixed': string.ascii_letters + string.digits,
+    'full': string.ascii_letters + string.digits + '!@#$%&*',
+}
+
+
+def generate_password(length=8, charset='digits'):
+    """Generate a password of given length using the specified charset."""
+    chars = CHARSETS.get(charset, string.digits)
+    return ''.join(random.choices(chars, k=length))

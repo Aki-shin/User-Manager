@@ -7,7 +7,7 @@ import traceback
 from flask import (Flask, render_template, request, jsonify, redirect,
                    url_for, flash, session)
 
-from config import load_config, save_config
+from config import load_config, save_config, load_passwords, save_password
 from ipa_client import IPAClient, generate_password
 from xlsx_parser import parse_xlsx, generate_uid
 from mail_service import send_credentials, test_mail_connection
@@ -46,6 +46,15 @@ def _get_ipa():
     return client
 
 
+def _gen_password():
+    """Generate password using current config settings."""
+    cfg = load_config()
+    return generate_password(
+        length=int(cfg.get('password_length', 8)),
+        charset=cfg.get('password_charset', 'digits'),
+    )
+
+
 def _first(val):
     """Extract first element if value is a list."""
     if isinstance(val, (list, tuple)):
@@ -81,7 +90,6 @@ def _get_group_members(ipa, group):
 
 @app.route('/')
 def index():
-    """Main page — user list."""
     cfg = load_config()
     if not cfg.get('ipa_server'):
         return redirect(url_for('settings'))
@@ -90,7 +98,6 @@ def index():
 
 @app.route('/sync')
 def sync_page():
-    """Sync page — upload XLSX and review changes."""
     cfg = load_config()
     if not cfg.get('ipa_server'):
         return redirect(url_for('settings'))
@@ -99,7 +106,6 @@ def sync_page():
 
 @app.route('/settings')
 def settings():
-    """Settings page."""
     cfg = load_config()
     return render_template('settings.html', config=cfg)
 
@@ -110,7 +116,6 @@ def settings():
 
 @app.route('/api/users')
 def api_users():
-    """Return list of users in target group."""
     try:
         ipa = _get_ipa()
         if not ipa:
@@ -119,8 +124,10 @@ def api_users():
         group = cfg.get('target_group', 'employees')
         users = _get_group_members(ipa, group)
         locks = _load_locks()
+        passwords = load_passwords()
         for u in users:
             u['locked'] = locks.get(u['uid'], False)
+            u['has_password'] = u['uid'] in passwords
         return jsonify({'users': users})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -128,7 +135,6 @@ def api_users():
 
 @app.route('/api/users/<uid>', methods=['PUT'])
 def api_user_update(uid):
-    """Update user fields in FreeIPA."""
     try:
         ipa = _get_ipa()
         data = request.json
@@ -155,7 +161,6 @@ def api_user_update(uid):
 
 @app.route('/api/users', methods=['POST'])
 def api_user_create():
-    """Create a new user in FreeIPA and add to target group."""
     try:
         ipa = _get_ipa()
         cfg = load_config()
@@ -167,7 +172,7 @@ def api_user_create():
         if not uid or not givenname or not sn:
             return jsonify({'error': 'uid, givenname и sn обязательны'}), 400
 
-        password = data.get('userpassword') or generate_password()
+        password = data.get('userpassword') or _gen_password()
         kwargs = {}
         for key in ('cn', 'telephonenumber', 'mobile', 'mail', 'title', 'ou', 'employeenumber'):
             if data.get(key):
@@ -182,14 +187,28 @@ def api_user_create():
         except Exception:
             pass
 
-        return jsonify({'ok': True, 'uid': uid, 'password': password})
+        # Save password for later resend
+        save_password(uid, password)
+
+        # Auto-send credentials if enabled
+        email_sent = False
+        if cfg.get('auto_send_credentials') and cfg.get('mail_server'):
+            email = data.get('mail', '')
+            cn = data.get('cn', '')
+            if email:
+                try:
+                    send_credentials(cfg, email, uid, password, cn, scenario='new_user')
+                    email_sent = True
+                except Exception:
+                    pass
+
+        return jsonify({'ok': True, 'uid': uid, 'password': password, 'email_sent': email_sent})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/users/<uid>', methods=['DELETE'])
 def api_user_delete(uid):
-    """Delete user from FreeIPA."""
     try:
         ipa = _get_ipa()
         ipa.user_del(uid)
@@ -203,30 +222,58 @@ def api_user_delete(uid):
 
 @app.route('/api/users/<uid>/password', methods=['POST'])
 def api_user_password(uid):
-    """Reset user password."""
     try:
         ipa = _get_ipa()
-        password = request.json.get('password') or generate_password()
+        cfg = load_config()
+        password = request.json.get('password') or _gen_password()
         ipa.passwd(uid, password)
+
+        # Save for later resend
+        save_password(uid, password)
 
         # Optionally send by email
         if request.json.get('send_email'):
-            cfg = load_config()
             if cfg.get('mail_server'):
                 user = ipa.user_show(uid)
                 email = _first(user.get('mail', ''))
                 cn = _first(user.get('cn', ''))
                 if email:
-                    send_credentials(cfg, email, uid, password, cn)
+                    send_credentials(cfg, email, uid, password, cn, scenario='reset')
 
         return jsonify({'ok': True, 'password': password})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/users/<uid>/resend', methods=['POST'])
+def api_user_resend(uid):
+    """Resend saved password to user's email."""
+    try:
+        cfg = load_config()
+        passwords = load_passwords()
+        password = passwords.get(uid)
+        if not password:
+            return jsonify({'error': 'Нет сохранённого пароля для этого пользователя'}), 400
+
+        if not cfg.get('mail_server'):
+            return jsonify({'error': 'Почтовый сервер не настроен'}), 400
+
+        ipa = _get_ipa()
+        user = ipa.user_show(uid)
+        email = _first(user.get('mail', ''))
+        cn = _first(user.get('cn', ''))
+        if not email:
+            return jsonify({'error': 'У пользователя нет email'}), 400
+
+        scenario = request.json.get('scenario', 'new_user') if request.json else 'new_user'
+        send_credentials(cfg, email, uid, password, cn, scenario=scenario)
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/users/<uid>/lock', methods=['POST'])
 def api_user_lock(uid):
-    """Toggle lock (protect from sync updates/deletion)."""
     locks = _load_locks()
     current = locks.get(uid, False)
     locks[uid] = not current
@@ -240,7 +287,6 @@ def api_user_lock(uid):
 
 @app.route('/api/sync/upload', methods=['POST'])
 def api_sync_upload():
-    """Upload XLSX, parse, and return diff with current IPA state."""
     try:
         ipa = _get_ipa()
         if not ipa:
@@ -259,7 +305,7 @@ def api_sync_upload():
 
         # Index IPA users by employeenumber and by cn
         ipa_by_code = {}
-        ipa_no_code = []  # users without employeenumber
+        ipa_no_code = []
         ipa_uids = set()
         for u in ipa_users:
             ipa_uids.add(u['uid'])
@@ -276,11 +322,10 @@ def api_sync_upload():
                 file_by_cn.setdefault(cn, []).append(fu)
 
         # Try to match IPA users without code by cn
-        matched_no_code = set()  # uids of successfully matched users
+        matched_no_code = set()
         for u in ipa_no_code:
             cn = u.get('cn', '')
             if cn and cn in file_by_cn and len(file_by_cn[cn]) == 1:
-                # Exactly one match — assign the code
                 fu = file_by_cn[cn][0]
                 ipa_by_code[fu['code']] = u
                 matched_no_code.add(u['uid'])
@@ -307,7 +352,6 @@ def api_sync_upload():
             seen_codes.add(code)
 
             if code in ipa_by_code:
-                # Existing user — compute changes
                 ipa_u = ipa_by_code[code]
                 changes = {}
                 for file_key, ipa_key in field_pairs:
@@ -316,8 +360,6 @@ def api_sync_upload():
                     if new_val != old_val:
                         changes[ipa_key] = {'old': old_val, 'new': new_val}
 
-                # If matched by cn and had no code, always include
-                # employeenumber update
                 if ipa_u['uid'] in matched_no_code:
                     old_code = ipa_u.get('employeenumber', '')
                     if old_code != code:
@@ -332,10 +374,9 @@ def api_sync_upload():
                         'locked': locks.get(ipa_u['uid'], False),
                     })
             else:
-                # New user
                 uid = generate_uid(fu['surname'], fu['firstname'], fu['patronymic'], ipa_uids)
                 ipa_uids.add(uid)
-                password = generate_password()
+                password = _gen_password()
                 creates.append({
                     'uid': uid,
                     'password': password,
@@ -353,8 +394,6 @@ def api_sync_upload():
                     },
                 })
 
-        # Users in IPA but not in file → delete candidates
-        # Include users with code not in file
         for code, ipa_u in ipa_by_code.items():
             if code not in seen_codes:
                 deletes.append({
@@ -364,7 +403,6 @@ def api_sync_upload():
                     'locked': locks.get(ipa_u['uid'], False),
                 })
 
-        # Users without code that were NOT matched by cn → also delete
         for u in ipa_no_code:
             if u['uid'] not in matched_no_code:
                 deletes.append({
@@ -386,7 +424,6 @@ def api_sync_upload():
 
 @app.route('/api/sync/apply', methods=['POST'])
 def api_sync_apply():
-    """Apply selected sync operations."""
     try:
         ipa = _get_ipa()
         cfg = load_config()
@@ -412,7 +449,7 @@ def api_sync_apply():
         for cr in data.get('creates', []):
             d = cr['data']
             uid = d['uid']
-            password = cr.get('password', generate_password())
+            password = cr.get('password', _gen_password())
             try:
                 kwargs = {}
                 for k in ('cn', 'telephonenumber', 'mobile', 'mail', 'title', 'ou', 'employeenumber'):
@@ -425,10 +462,13 @@ def api_sync_apply():
                 except Exception:
                     pass
 
-                # Send email if configured
-                if cfg.get('mail_server') and d.get('mail'):
+                save_password(uid, password)
+
+                # Auto-send if enabled
+                if cfg.get('auto_send_credentials') and cfg.get('mail_server') and d.get('mail'):
                     try:
-                        send_credentials(cfg, d['mail'], uid, password, d.get('cn', ''))
+                        send_credentials(cfg, d['mail'], uid, password, d.get('cn', ''),
+                                         scenario='new_user')
                     except Exception:
                         pass
 
@@ -462,7 +502,6 @@ def api_sync_apply():
 
 @app.route('/api/settings', methods=['POST'])
 def api_settings_save():
-    """Save settings."""
     try:
         data = request.json
         save_config(data)
@@ -473,7 +512,6 @@ def api_settings_save():
 
 @app.route('/api/settings/test-ipa', methods=['POST'])
 def api_test_ipa():
-    """Test FreeIPA connection."""
     try:
         data = request.json
         client = IPAClient(
@@ -490,7 +528,6 @@ def api_test_ipa():
 
 @app.route('/api/settings/test-mail', methods=['POST'])
 def api_test_mail():
-    """Test mail server connection."""
     try:
         data = request.json
         ok, msg = test_mail_connection(data)

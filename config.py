@@ -15,7 +15,42 @@ DEFAULT_CONFIG = {
     'mail_username': '',
     'mail_password': '',
     'mail_from': '',
+    'auto_send_credentials': False,
+    'password_length': 8,
+    'password_charset': 'digits',
+    'mail_template_new_user_subject': 'Данные для входа в систему',
+    'mail_template_new_user_body': (
+        'Здравствуйте, {full_name}!\n\n'
+        'Для вас создана учётная запись.\n'
+        'Логин: {uid}\n'
+        'Пароль: {password}\n\n'
+        'Пожалуйста, смените пароль при первом входе.'
+    ),
+    'mail_template_reset_subject': 'Сброс пароля',
+    'mail_template_reset_body': (
+        'Здравствуйте, {full_name}!\n\n'
+        'Ваш пароль был сброшен.\n'
+        'Логин: {uid}\n'
+        'Новый пароль: {password}\n\n'
+        'Пожалуйста, смените пароль при первом входе.'
+    ),
 }
+
+PASSWORDS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'passwords.json')
+
+
+def load_passwords():
+    if os.path.exists(PASSWORDS_PATH):
+        with open(PASSWORDS_PATH, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
+
+
+def save_password(uid, password):
+    data = load_passwords()
+    data[uid] = password
+    with open(PASSWORDS_PATH, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
 
 
 def load_config():

@@ -5,38 +5,39 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 
-def send_credentials(mail_cfg, recipient_email, uid, password, full_name=''):
+def _render_template(template, uid, password, full_name):
+    """Replace placeholders in a template string."""
+    return template.replace('{uid}', uid).replace(
+        '{password}', password).replace('{full_name}', full_name)
+
+
+def send_credentials(mail_cfg, recipient_email, uid, password, full_name='',
+                     scenario='new_user'):
     """Send login credentials to a user via email.
 
-    mail_cfg keys: mail_server, mail_port, mail_use_tls,
-                   mail_username, mail_password, mail_from
+    scenario: 'new_user' or 'reset'
     """
+    subject_key = f'mail_template_{scenario}_subject'
+    body_key = f'mail_template_{scenario}_body'
+
+    subject = mail_cfg.get(subject_key, 'Данные для входа в систему')
+    body_tpl = mail_cfg.get(body_key, '')
+
+    subject = _render_template(subject, uid, password, full_name)
+    body_text = _render_template(body_tpl, uid, password, full_name)
+
+    body_html = body_text.replace('&', '&amp;').replace('<', '&lt;').replace(
+        '>', '&gt;').replace('\n', '<br>')
+
     msg = MIMEMultipart('alternative')
     msg['From'] = mail_cfg['mail_from']
     msg['To'] = recipient_email
-    msg['Subject'] = 'Данные для входа в систему'
+    msg['Subject'] = subject
 
-    text = (
-        f"Здравствуйте, {full_name}!\n\n"
-        f"Ваши данные для входа:\n"
-        f"Логин: {uid}\n"
-        f"Пароль: {password}\n\n"
-        f"Пожалуйста, смените пароль при первом входе.\n"
-    )
-    html = (
-        f"<html><body>"
-        f"<p>Здравствуйте, <b>{full_name}</b>!</p>"
-        f"<p>Ваши данные для входа:</p>"
-        f"<table border='0' cellpadding='4'>"
-        f"<tr><td><b>Логин:</b></td><td>{uid}</td></tr>"
-        f"<tr><td><b>Пароль:</b></td><td><code>{password}</code></td></tr>"
-        f"</table>"
-        f"<p>Пожалуйста, смените пароль при первом входе.</p>"
-        f"</body></html>"
-    )
-
-    msg.attach(MIMEText(text, 'plain', 'utf-8'))
-    msg.attach(MIMEText(html, 'html', 'utf-8'))
+    msg.attach(MIMEText(body_text, 'plain', 'utf-8'))
+    msg.attach(MIMEText(
+        f'<html><body style="font-family:sans-serif">{body_html}</body></html>',
+        'html', 'utf-8'))
 
     with smtplib.SMTP(mail_cfg['mail_server'], int(mail_cfg['mail_port'])) as srv:
         if mail_cfg.get('mail_use_tls'):

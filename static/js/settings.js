@@ -13,6 +13,13 @@ function getSettingsData() {
         mail_username: document.getElementById('cfg-mail-username').value,
         mail_password: document.getElementById('cfg-mail-password').value,
         mail_from: document.getElementById('cfg-mail-from').value,
+        auto_send_credentials: document.getElementById('cfg-auto-send').checked,
+        password_length: parseInt(document.getElementById('cfg-password-length').value) || 8,
+        password_charset: document.getElementById('cfg-password-charset').value,
+        mail_template_new_user_subject: document.getElementById('cfg-tpl-new-subject').value,
+        mail_template_new_user_body: document.getElementById('cfg-tpl-new-body').value,
+        mail_template_reset_subject: document.getElementById('cfg-tpl-reset-subject').value,
+        mail_template_reset_body: document.getElementById('cfg-tpl-reset-body').value,
     };
 }
 
@@ -29,10 +36,10 @@ async function saveSettings() {
 }
 
 async function testIPA() {
-    const span = document.getElementById('ipa-test-result');
+    var span = document.getElementById('ipa-test-result');
     span.innerHTML = '<span class="text-muted">Проверка...</span>';
     try {
-        const data = getSettingsData();
+        var data = getSettingsData();
         await api('/api/settings/test-ipa', {
             method: 'POST',
             body: {
@@ -44,15 +51,15 @@ async function testIPA() {
         });
         span.innerHTML = '<span class="text-success"><i class="bi bi-check-circle me-1"></i>Подключение успешно</span>';
     } catch (e) {
-        span.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle me-1"></i>${escapeHtml(e.message)}</span>`;
+        span.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle me-1"></i>' + escapeHtml(e.message) + '</span>';
     }
 }
 
 async function testMail() {
-    const span = document.getElementById('mail-test-result');
+    var span = document.getElementById('mail-test-result');
     span.innerHTML = '<span class="text-muted">Проверка...</span>';
     try {
-        const data = getSettingsData();
+        var data = getSettingsData();
         await api('/api/settings/test-mail', {
             method: 'POST',
             body: {
@@ -66,6 +73,6 @@ async function testMail() {
         });
         span.innerHTML = '<span class="text-success"><i class="bi bi-check-circle me-1"></i>Подключение успешно</span>';
     } catch (e) {
-        span.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle me-1"></i>${escapeHtml(e.message)}</span>`;
+        span.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle me-1"></i>' + escapeHtml(e.message) + '</span>';
     }
 }

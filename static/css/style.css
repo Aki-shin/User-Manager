@@ -5,6 +5,12 @@ body {
     font-size: 0.9rem;
 }
 
+/* Full-width layout */
+.container-fluid {
+    padding-left: 1rem;
+    padding-right: 1rem;
+}
+
 .table th {
     white-space: nowrap;
     font-size: 0.82rem;
@@ -42,11 +48,6 @@ body {
 .diff-field-changed {
     font-weight: 600;
     color: #d63384;
-}
-
-.diff-field-new {
-    font-weight: 600;
-    color: #198754;
 }
 
 /* Lock icon */
@@ -89,9 +90,9 @@ tr.row-create td {
     background-color: #e6ffed;
 }
 
-/* Responsive table wrapper */
+/* Full-height table */
 .table-responsive {
-    max-height: 75vh;
+    max-height: calc(100vh - 160px);
     overflow-y: auto;
 }
 
@@ -110,4 +111,10 @@ tr.row-create td {
 
 .sync-section .badge {
     font-size: 0.85rem;
+}
+
+/* Selection counter */
+.selection-counter {
+    font-size: 0.85rem;
+    color: #495057;
 }

@@ -31,7 +31,11 @@
     <div class="sync-section" id="section-updates" style="display:none">
         <div class="card">
             <div class="card-header bg-warning bg-opacity-25 d-flex justify-content-between align-items-center">
-                <span><i class="bi bi-pencil-square me-1"></i>Обновление данных <span class="badge bg-warning text-dark" id="count-updates">0</span></span>
+                <span>
+                    <i class="bi bi-pencil-square me-1"></i>Обновление данных
+                    <span class="badge bg-warning text-dark" id="count-updates">0</span>
+                    <span class="selection-counter ms-2" id="sel-updates"></span>
+                </span>
                 <div>
                     <button class="btn btn-sm btn-outline-secondary" onclick="toggleAllUpdates()">
                         <i class="bi bi-check2-square me-1"></i>Выбрать/Снять все
@@ -42,7 +46,7 @@
                 <table class="table table-bordered table-sm mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th style="width:40px"><input type="checkbox" id="chk-all-updates" checked onchange="toggleAllUpdateCheckboxes(this)"></th>
+                            <th style="width:40px"></th>
                             <th>Логин</th>
                             <th>Код</th>
                             <th>Поле</th>
@@ -61,7 +65,11 @@
     <div class="sync-section" id="section-creates" style="display:none">
         <div class="card">
             <div class="card-header bg-success bg-opacity-25 d-flex justify-content-between align-items-center">
-                <span><i class="bi bi-person-plus me-1"></i>Новые пользователи <span class="badge bg-success" id="count-creates">0</span></span>
+                <span>
+                    <i class="bi bi-person-plus me-1"></i>Новые пользователи
+                    <span class="badge bg-success" id="count-creates">0</span>
+                    <span class="selection-counter ms-2" id="sel-creates"></span>
+                </span>
                 <div>
                     <button class="btn btn-sm btn-outline-secondary" onclick="toggleAllCreates()">
                         <i class="bi bi-check2-square me-1"></i>Выбрать/Снять все
@@ -72,7 +80,7 @@
                 <table class="table table-bordered table-sm mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th style="width:40px"><input type="checkbox" id="chk-all-creates" checked onchange="toggleAllCreateCheckboxes(this)"></th>
+                            <th style="width:40px"></th>
                             <th>Логин</th>
                             <th>Имя</th>
                             <th>Фамилия</th>
@@ -95,7 +103,11 @@
     <div class="sync-section" id="section-deletes" style="display:none">
         <div class="card">
             <div class="card-header bg-danger bg-opacity-25 d-flex justify-content-between align-items-center">
-                <span><i class="bi bi-person-x me-1"></i>Удаление пользователей <span class="badge bg-danger" id="count-deletes">0</span></span>
+                <span>
+                    <i class="bi bi-person-x me-1"></i>Удаление пользователей
+                    <span class="badge bg-danger" id="count-deletes">0</span>
+                    <span class="selection-counter ms-2" id="sel-deletes"></span>
+                </span>
                 <div>
                     <button class="btn btn-sm btn-outline-secondary" onclick="toggleAllDeletes()">
                         <i class="bi bi-check2-square me-1"></i>Выбрать/Снять все
@@ -106,7 +118,7 @@
                 <table class="table table-bordered table-sm mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th style="width:40px"><input type="checkbox" id="chk-all-deletes" checked onchange="toggleAllDeleteCheckboxes(this)"></th>
+                            <th style="width:40px"></th>
                             <th>Логин</th>
                             <th>Код</th>
                             <th>Полное имя</th>
@@ -127,7 +139,8 @@
     </div>
 
     <!-- Apply button -->
-    <div class="d-flex justify-content-end mt-3 mb-4" id="apply-section" style="display:none">
+    <div class="d-flex justify-content-between align-items-center mt-3 mb-4" id="apply-section" style="display:none">
+        <span class="selection-counter" id="sel-total"></span>
         <button class="btn btn-primary btn-lg" onclick="applySync()">
             <i class="bi bi-check2-all me-1"></i>Применить выбранные изменения
         </button>
