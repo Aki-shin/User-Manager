@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Синхронизация — User Manager{% endblock %}
+
+{% block content %}
+<h4 class="mb-3"><i class="bi bi-arrow-repeat me-2"></i>Синхронизация с XLSX</h4>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form id="upload-form" enctype="multipart/form-data">
+            <div class="row align-items-end">
+                <div class="col-md-8">
+                    <label class="form-label">Выберите XLSX файл со списком сотрудников</label>
+                    <input type="file" class="form-control" id="xlsx-file" accept=".xlsx,.xls">
+                </div>
+                <div class="col-md-4">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-upload me-1"></i>Загрузить и обработать
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="mb-3" id="sync-search-box" style="display:none">
+    <input type="text" class="form-control" id="sync-search" placeholder="Поиск по результатам синхронизации..." oninput="filterSyncResults()">
+</div>
+
+<div id="sync-results" style="display:none">
+    <!-- Updates -->
+    <div class="sync-section" id="section-updates" style="display:none">
+        <div class="card">
+            <div class="card-header bg-warning bg-opacity-25 d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-pencil-square me-1"></i>Обновление данных <span class="badge bg-warning text-dark" id="count-updates">0</span></span>
+                <div>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="toggleAllUpdates()">
+                        <i class="bi bi-check2-square me-1"></i>Выбрать/Снять все
+                    </button>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-bordered table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:40px"><input type="checkbox" id="chk-all-updates" checked onchange="toggleAllUpdateCheckboxes(this)"></th>
+                            <th>Логин</th>
+                            <th>Код</th>
+                            <th>Поле</th>
+                            <th>Текущее значение</th>
+                            <th>Новое значение</th>
+                            <th style="width:50px">Замок</th>
+                        </tr>
+                    </thead>
+                    <tbody id="updates-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Creates -->
+    <div class="sync-section" id="section-creates" style="display:none">
+        <div class="card">
+            <div class="card-header bg-success bg-opacity-25 d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-person-plus me-1"></i>Новые пользователи <span class="badge bg-success" id="count-creates">0</span></span>
+                <div>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="toggleAllCreates()">
+                        <i class="bi bi-check2-square me-1"></i>Выбрать/Снять все
+                    </button>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-bordered table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:40px"><input type="checkbox" id="chk-all-creates" checked onchange="toggleAllCreateCheckboxes(this)"></th>
+                            <th>Логин</th>
+                            <th>Имя</th>
+                            <th>Фамилия</th>
+                            <th>Полное имя</th>
+                            <th>Email</th>
+                            <th>Телефон</th>
+                            <th>Должность</th>
+                            <th>Подразделение</th>
+                            <th>Код</th>
+                            <th>Пароль</th>
+                        </tr>
+                    </thead>
+                    <tbody id="creates-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Deletes -->
+    <div class="sync-section" id="section-deletes" style="display:none">
+        <div class="card">
+            <div class="card-header bg-danger bg-opacity-25 d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-person-x me-1"></i>Удаление пользователей <span class="badge bg-danger" id="count-deletes">0</span></span>
+                <div>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="toggleAllDeletes()">
+                        <i class="bi bi-check2-square me-1"></i>Выбрать/Снять все
+                    </button>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-bordered table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:40px"><input type="checkbox" id="chk-all-deletes" checked onchange="toggleAllDeleteCheckboxes(this)"></th>
+                            <th>Логин</th>
+                            <th>Код</th>
+                            <th>Полное имя</th>
+                            <th>Email</th>
+                            <th>Должность</th>
+                            <th style="width:50px">Замок</th>
+                        </tr>
+                    </thead>
+                    <tbody id="deletes-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- No changes -->
+    <div id="no-changes" class="alert alert-info" style="display:none">
+        <i class="bi bi-info-circle me-1"></i>Изменений не обнаружено. Данные в FreeIPA соответствуют файлу.
+    </div>
+
+    <!-- Apply button -->
+    <div class="d-flex justify-content-end mt-3 mb-4" id="apply-section" style="display:none">
+        <button class="btn btn-primary btn-lg" onclick="applySync()">
+            <i class="bi bi-check2-all me-1"></i>Применить выбранные изменения
+        </button>
+    </div>
+
+    <!-- Results -->
+    <div id="apply-results" style="display:none">
+        <div class="card mb-4">
+            <div class="card-header bg-info bg-opacity-25">
+                <i class="bi bi-clipboard-check me-1"></i>Результаты применения
+            </div>
+            <div class="card-body" id="apply-results-body"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/sync.js') }}"></script>
+{% endblock %}

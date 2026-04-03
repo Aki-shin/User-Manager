@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Настройки — User Manager{% endblock %}
+
+{% block content %}
+<h4 class="mb-3"><i class="bi bi-gear me-2"></i>Настройки</h4>
+
+<div class="row">
+    <!-- FreeIPA -->
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-server me-1"></i>FreeIPA</div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Сервер</label>
+                    <input type="text" class="form-control" id="cfg-ipa-server" value="{{ config.ipa_server }}" placeholder="ipa.example.com">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Пользователь</label>
+                    <input type="text" class="form-control" id="cfg-ipa-user" value="{{ config.ipa_user }}" placeholder="admin">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Пароль</label>
+                    <input type="password" class="form-control" id="cfg-ipa-password" value="{{ config.ipa_password }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Целевая группа</label>
+                    <input type="text" class="form-control" id="cfg-target-group" value="{{ config.target_group }}" placeholder="employees">
+                </div>
+                <div class="form-check mb-3">
+                    <input type="checkbox" class="form-check-input" id="cfg-ipa-verify-ssl" {% if config.ipa_verify_ssl %}checked{% endif %}>
+                    <label class="form-check-label" for="cfg-ipa-verify-ssl">Проверять SSL сертификат</label>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-primary" onclick="testIPA()">
+                        <i class="bi bi-plug me-1"></i>Проверить подключение
+                    </button>
+                    <span id="ipa-test-result"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mail -->
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-envelope me-1"></i>Почтовый сервер</div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">SMTP сервер</label>
+                    <input type="text" class="form-control" id="cfg-mail-server" value="{{ config.mail_server }}" placeholder="smtp.example.com">
+                </div>
+                <div class="row mb-3">
+                    <div class="col-8">
+                        <label class="form-label">Порт</label>
+                        <input type="number" class="form-control" id="cfg-mail-port" value="{{ config.mail_port }}">
+                    </div>
+                    <div class="col-4 d-flex align-items-end">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="cfg-mail-tls" {% if config.mail_use_tls %}checked{% endif %}>
+                            <label class="form-check-label" for="cfg-mail-tls">STARTTLS</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Пользователь</label>
+                    <input type="text" class="form-control" id="cfg-mail-username" value="{{ config.mail_username }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Пароль</label>
+                    <input type="password" class="form-control" id="cfg-mail-password" value="{{ config.mail_password }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Адрес отправителя</label>
+                    <input type="email" class="form-control" id="cfg-mail-from" value="{{ config.mail_from }}" placeholder="noreply@example.com">
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-primary" onclick="testMail()">
+                        <i class="bi bi-plug me-1"></i>Проверить подключение
+                    </button>
+                    <span id="mail-test-result"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="d-flex justify-content-end mb-4">
+    <button class="btn btn-primary btn-lg" onclick="saveSettings()">
+        <i class="bi bi-save me-1"></i>Сохранить настройки
+    </button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/settings.js') }}"></script>
+{% endblock %}
