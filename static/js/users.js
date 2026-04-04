@@ -17,7 +17,20 @@ var FIELDS = [
     { key: 'employeenumber', label: 'Код' },
 ];
 
-document.addEventListener('DOMContentLoaded', loadUsers);
+document.addEventListener('DOMContentLoaded', function() {
+    loadUsers();
+    // Auto-focus search field on any keypress when not in an input/textarea
+    document.addEventListener('keydown', function(e) {
+        var tag = (e.target.tagName || '').toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+        if (e.ctrlKey || e.altKey || e.metaKey) return;
+        if (e.key.length !== 1) return; // ignore special keys
+        var search = document.getElementById('user-search');
+        if (search) {
+            search.focus();
+        }
+    });
+});
 
 async function loadUsers() {
     showLoading();

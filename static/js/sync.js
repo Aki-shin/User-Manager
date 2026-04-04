@@ -249,16 +249,20 @@ function renderSyncResults() {
 
 // Toggle helpers — operate on ALL items, not just visible
 function toggleAllUpdates() {
+    if (!syncData) return;
+    saveCheckboxState();
     var total = (syncData.updates || []).length;
-    var allChecked = countChecked('update', total) === total;
+    var checkedCount = countChecked('update', total);
+    var setTo = checkedCount < total;
     for (var i = 0; i < total; i++) {
         if (!syncData.updates[i].locked) {
-            checkedState['update_' + i] = !allChecked;
+            checkedState['update_' + i] = setTo;
         }
     }
     renderSyncResults();
 }
 function toggleAllUpdatesCheckbox(el) {
+    if (!syncData) return;
     var total = (syncData.updates || []).length;
     for (var i = 0; i < total; i++) {
         if (!syncData.updates[i].locked) {
@@ -269,14 +273,18 @@ function toggleAllUpdatesCheckbox(el) {
 }
 
 function toggleAllCreates() {
+    if (!syncData) return;
+    saveCheckboxState();
     var total = (syncData.creates || []).length;
-    var allChecked = countChecked('create', total) === total;
+    var checkedCount = countChecked('create', total);
+    var setTo = checkedCount < total;
     for (var i = 0; i < total; i++) {
-        checkedState['create_' + i] = !allChecked;
+        checkedState['create_' + i] = setTo;
     }
     renderSyncResults();
 }
 function toggleAllCreatesCheckbox(el) {
+    if (!syncData) return;
     var total = (syncData.creates || []).length;
     for (var i = 0; i < total; i++) {
         checkedState['create_' + i] = el.checked;
@@ -285,16 +293,20 @@ function toggleAllCreatesCheckbox(el) {
 }
 
 function toggleAllDeletes() {
+    if (!syncData) return;
+    saveCheckboxState();
     var total = (syncData.deletes || []).length;
-    var allChecked = countChecked('delete', total) === total;
+    var checkedCount = countChecked('delete', total);
+    var setTo = checkedCount < total;
     for (var i = 0; i < total; i++) {
         if (!syncData.deletes[i].locked) {
-            checkedState['delete_' + i] = !allChecked;
+            checkedState['delete_' + i] = setTo;
         }
     }
     renderSyncResults();
 }
 function toggleAllDeletesCheckbox(el) {
+    if (!syncData) return;
     var total = (syncData.deletes || []).length;
     for (var i = 0; i < total; i++) {
         if (!syncData.deletes[i].locked) {
