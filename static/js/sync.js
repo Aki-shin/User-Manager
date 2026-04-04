@@ -258,12 +258,28 @@ function toggleAllUpdates() {
     }
     renderSyncResults();
 }
+function toggleAllUpdatesCheckbox(el) {
+    var total = (syncData.updates || []).length;
+    for (var i = 0; i < total; i++) {
+        if (!syncData.updates[i].locked) {
+            checkedState['update_' + i] = el.checked;
+        }
+    }
+    renderSyncResults();
+}
 
 function toggleAllCreates() {
     var total = (syncData.creates || []).length;
     var allChecked = countChecked('create', total) === total;
     for (var i = 0; i < total; i++) {
         checkedState['create_' + i] = !allChecked;
+    }
+    renderSyncResults();
+}
+function toggleAllCreatesCheckbox(el) {
+    var total = (syncData.creates || []).length;
+    for (var i = 0; i < total; i++) {
+        checkedState['create_' + i] = el.checked;
     }
     renderSyncResults();
 }
@@ -274,6 +290,15 @@ function toggleAllDeletes() {
     for (var i = 0; i < total; i++) {
         if (!syncData.deletes[i].locked) {
             checkedState['delete_' + i] = !allChecked;
+        }
+    }
+    renderSyncResults();
+}
+function toggleAllDeletesCheckbox(el) {
+    var total = (syncData.deletes || []).length;
+    for (var i = 0; i < total; i++) {
+        if (!syncData.deletes[i].locked) {
+            checkedState['delete_' + i] = el.checked;
         }
     }
     renderSyncResults();
