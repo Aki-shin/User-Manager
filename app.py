@@ -303,12 +303,18 @@ def api_sync_upload():
         ipa_users = _get_group_members(ipa, group)
         locks = _load_locks()
 
+        # Get ALL uids in IPA (not just group) to avoid collisions
+        all_ipa_users = ipa.user_find('', pkey_only=True)
+        all_ipa_uids = set()
+        for au in all_ipa_users:
+            uid = _first(au.get('uid', ''))
+            if uid:
+                all_ipa_uids.add(uid)
+
         # Index IPA users by employeenumber and by cn
         ipa_by_code = {}
         ipa_no_code = []
-        ipa_uids = set()
         for u in ipa_users:
-            ipa_uids.add(u['uid'])
             if u.get('employeenumber'):
                 ipa_by_code[u['employeenumber']] = u
             else:
@@ -374,8 +380,8 @@ def api_sync_upload():
                         'locked': locks.get(ipa_u['uid'], False),
                     })
             else:
-                uid = generate_uid(fu['surname'], fu['firstname'], fu['patronymic'], ipa_uids)
-                ipa_uids.add(uid)
+                uid = generate_uid(fu['surname'], fu['firstname'], fu['patronymic'], all_ipa_uids)
+                all_ipa_uids.add(uid)
                 password = _gen_password()
                 creates.append({
                     'uid': uid,

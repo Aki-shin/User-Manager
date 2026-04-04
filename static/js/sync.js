@@ -319,43 +319,110 @@ function toggleAllDeletesCheckbox(el) {
     renderSyncResults(true);
 }
 
-// Apply sync — uses checkedState, sends ALL selected (not just filtered)
-async function applySync() {
-    if (!confirm('Применить выбранные изменения к FreeIPA?')) return;
+// Apply sync — uses checkedState, sends ALL selected in batches with progress
+var BATCH_SIZE = 10;
 
-    var payload = { updates: [], creates: [], deletes: [] };
+function collectSelectedOperations() {
+    var ops = [];
     var i;
-
     for (i = 0; i < (syncData.updates || []).length; i++) {
         if (checkedState['update_' + i]) {
-            payload.updates.push(syncData.updates[i]);
+            ops.push({ type: 'update', item: syncData.updates[i] });
         }
     }
     for (i = 0; i < (syncData.creates || []).length; i++) {
         if (checkedState['create_' + i]) {
-            payload.creates.push(syncData.creates[i]);
+            ops.push({ type: 'create', item: syncData.creates[i] });
         }
     }
     for (i = 0; i < (syncData.deletes || []).length; i++) {
         if (checkedState['delete_' + i]) {
-            payload.deletes.push(syncData.deletes[i]);
+            ops.push({ type: 'delete', item: syncData.deletes[i] });
         }
     }
+    return ops;
+}
 
-    if (!payload.updates.length && !payload.creates.length && !payload.deletes.length) {
+function updateProgress(done, total, label) {
+    var pct = total > 0 ? Math.round(done / total * 100) : 0;
+    var bar = document.getElementById('progress-bar');
+    var pctEl = document.getElementById('progress-percent');
+    var labelEl = document.getElementById('progress-label');
+    var detailEl = document.getElementById('progress-detail');
+    if (bar) bar.style.width = pct + '%';
+    if (pctEl) pctEl.textContent = pct + '%';
+    if (labelEl) labelEl.textContent = label || '';
+    if (detailEl) detailEl.textContent = done + ' / ' + total + ' операций';
+}
+
+function buildBatchPayload(ops) {
+    var payload = { updates: [], creates: [], deletes: [] };
+    for (var i = 0; i < ops.length; i++) {
+        var op = ops[i];
+        if (op.type === 'update') payload.updates.push(op.item);
+        else if (op.type === 'create') payload.creates.push(op.item);
+        else if (op.type === 'delete') payload.deletes.push(op.item);
+    }
+    return payload;
+}
+
+async function applySync() {
+    if (!confirm('Применить выбранные изменения к FreeIPA?')) return;
+
+    var allOps = collectSelectedOperations();
+    if (!allOps.length) {
         showAlert('Ничего не выбрано', 'warning');
         return;
     }
 
-    showLoading();
-    try {
-        var result = await api('/api/sync/apply', { method: 'POST', body: payload });
-        renderApplyResults(result);
-    } catch (err) {
-        showAlert('Ошибка применения: ' + err.message);
-    } finally {
-        hideLoading();
+    // Split into batches
+    var batches = [];
+    for (var i = 0; i < allOps.length; i += BATCH_SIZE) {
+        batches.push(allOps.slice(i, i + BATCH_SIZE));
     }
+
+    var totalOps = allOps.length;
+    var doneOps = 0;
+    var allApplied = [];
+    var allErrors = [];
+
+    // Show progress, hide apply button
+    document.getElementById('sync-progress').style.display = '';
+    document.getElementById('apply-results').style.display = 'none';
+    document.getElementById('apply-section').style.display = 'none';
+    updateProgress(0, totalOps, 'Отправка пакета 1 из ' + batches.length + '...');
+
+    for (var b = 0; b < batches.length; b++) {
+        var batch = batches[b];
+        var payload = buildBatchPayload(batch);
+
+        updateProgress(doneOps, totalOps, 'Пакет ' + (b + 1) + ' из ' + batches.length + '...');
+
+        try {
+            var result = await api('/api/sync/apply', { method: 'POST', body: payload });
+            if (result.applied) allApplied = allApplied.concat(result.applied);
+            if (result.errors) allErrors = allErrors.concat(result.errors);
+        } catch (err) {
+            // Mark all ops in this batch as errors
+            for (var j = 0; j < batch.length; j++) {
+                allErrors.push({
+                    action: batch[j].type,
+                    uid: batch[j].item.uid || (batch[j].item.data && batch[j].item.data.uid) || '?',
+                    error: err.message,
+                });
+            }
+        }
+
+        doneOps += batch.length;
+        updateProgress(doneOps, totalOps, 'Пакет ' + (b + 1) + ' из ' + batches.length + ' — готово');
+    }
+
+    // Done
+    updateProgress(totalOps, totalOps, 'Завершено');
+    document.getElementById('sync-progress').style.display = 'none';
+    document.getElementById('apply-section').style.display = '';
+
+    renderApplyResults({ applied: allApplied, errors: allErrors });
 }
 
 function renderApplyResults(result) {

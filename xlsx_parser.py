@@ -147,7 +147,7 @@ def parse_xlsx(file_path_or_stream):
             'department': ' / '.join(departments),
             'mobile': digits_only(first['mobile']),
             'phone': digits_only(first['phone']),
-            'email': first['email'],
+            'email': re.sub(r'\s+', '', first['email']),
         })
 
     return result

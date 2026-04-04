@@ -67,7 +67,7 @@ After=network.target
 Type=simple
 User=$APP_USER
 WorkingDirectory=$APP_DIR
-ExecStart=$APP_DIR/venv/bin/gunicorn -b 0.0.0.0:5000 -w 2 --timeout 120 app:app
+ExecStart=$APP_DIR/venv/bin/gunicorn -b 0.0.0.0:5000 -w 2 --timeout 300 app:app
 Restart=always
 RestartSec=5
 Environment=PYTHONUNBUFFERED=1
