@@ -110,9 +110,9 @@ function onCheckboxChange(el) {
     updateSelectionCounters();
 }
 
-function renderSyncResults() {
-    // Save current checkbox state before re-rendering
-    saveCheckboxState();
+function renderSyncResults(skipSaveState) {
+    // Save current checkbox state before re-rendering (only from search/filter)
+    if (!skipSaveState) saveCheckboxState();
 
     document.getElementById('sync-results').style.display = '';
     document.getElementById('sync-search-box').style.display = '';
@@ -259,17 +259,18 @@ function toggleAllUpdates() {
             checkedState['update_' + i] = setTo;
         }
     }
-    renderSyncResults();
+    renderSyncResults(true);
 }
 function toggleAllUpdatesCheckbox(el) {
     if (!syncData) return;
+    saveCheckboxState();
     var total = (syncData.updates || []).length;
     for (var i = 0; i < total; i++) {
         if (!syncData.updates[i].locked) {
             checkedState['update_' + i] = el.checked;
         }
     }
-    renderSyncResults();
+    renderSyncResults(true);
 }
 
 function toggleAllCreates() {
@@ -281,15 +282,16 @@ function toggleAllCreates() {
     for (var i = 0; i < total; i++) {
         checkedState['create_' + i] = setTo;
     }
-    renderSyncResults();
+    renderSyncResults(true);
 }
 function toggleAllCreatesCheckbox(el) {
     if (!syncData) return;
+    saveCheckboxState();
     var total = (syncData.creates || []).length;
     for (var i = 0; i < total; i++) {
         checkedState['create_' + i] = el.checked;
     }
-    renderSyncResults();
+    renderSyncResults(true);
 }
 
 function toggleAllDeletes() {
@@ -303,17 +305,18 @@ function toggleAllDeletes() {
             checkedState['delete_' + i] = setTo;
         }
     }
-    renderSyncResults();
+    renderSyncResults(true);
 }
 function toggleAllDeletesCheckbox(el) {
     if (!syncData) return;
+    saveCheckboxState();
     var total = (syncData.deletes || []).length;
     for (var i = 0; i < total; i++) {
         if (!syncData.deletes[i].locked) {
             checkedState['delete_' + i] = el.checked;
         }
     }
-    renderSyncResults();
+    renderSyncResults(true);
 }
 
 // Apply sync — uses checkedState, sends ALL selected (not just filtered)
