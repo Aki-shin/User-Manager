@@ -16,6 +16,7 @@ function getSettingsData() {
         auto_send_credentials: document.getElementById('cfg-auto-send').checked,
         password_length: parseInt(document.getElementById('cfg-password-length').value) || 8,
         password_charset: document.getElementById('cfg-password-charset').value,
+        xlsx_hint: document.getElementById('cfg-xlsx-hint').value,
         mail_template_new_user_subject: document.getElementById('cfg-tpl-new-subject').value,
         mail_template_new_user_body: document.getElementById('cfg-tpl-new-body').value,
         mail_template_reset_subject: document.getElementById('cfg-tpl-reset-subject').value,

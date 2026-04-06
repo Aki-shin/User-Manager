@@ -4,6 +4,23 @@
 {% block content %}
 <h4 class="mb-3"><i class="bi bi-arrow-repeat me-2"></i>Синхронизация с XLSX</h4>
 
+{% if xlsx_hint %}
+<div class="card mb-4 border-info">
+    <div class="card-header bg-info bg-opacity-10 p-2">
+        <a class="text-decoration-none d-flex align-items-center" data-bs-toggle="collapse" href="#xlsx-hint-body" role="button" aria-expanded="false" aria-controls="xlsx-hint-body">
+            <i class="bi bi-info-circle me-2"></i>
+            <span>Как подготовить XLSX файл</span>
+            <i class="bi bi-chevron-down ms-auto"></i>
+        </a>
+    </div>
+    <div class="collapse" id="xlsx-hint-body">
+        <div class="card-body py-2">
+            <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit; font-size: 0.9rem;">{{ xlsx_hint }}</pre>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <div class="card mb-4">
     <div class="card-body">
         <form id="upload-form" enctype="multipart/form-data">

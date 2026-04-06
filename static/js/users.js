@@ -35,7 +35,7 @@ document.addEventListener('DOMContentLoaded', function() {
 async function loadUsers() {
     showLoading();
     try {
-        var data = await api('/api/users');
+        var data = await api('/api/users', { _retries: 2 });
         usersData = data.users;
         renderUsers();
     } catch (e) {

@@ -101,7 +101,9 @@ def sync_page():
     cfg = load_config()
     if not cfg.get('ipa_server'):
         return redirect(url_for('settings'))
-    return render_template('sync.html', target_group=cfg.get('target_group', 'employees'))
+    return render_template('sync.html',
+                           target_group=cfg.get('target_group', 'employees'),
+                           xlsx_hint=cfg.get('xlsx_hint', ''))
 
 
 @app.route('/settings')
@@ -547,4 +549,6 @@ def api_test_mail():
 # ------------------------------------------------------------------
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    host = os.environ.get('HOST', '127.0.0.1')
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host=host, port=port, debug=False, use_reloader=False, threaded=True)

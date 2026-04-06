@@ -27,17 +27,33 @@ function hideLoading() {
     if (el) el.remove();
 }
 
-async function api(url, options = {}) {
+async function api(url, options) {
+    options = options || {};
+    var maxRetries = options._retries || 0;
+    delete options._retries;
+
     if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
-        options.headers = { 'Content-Type': 'application/json', ...options.headers };
+        options.headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
         options.body = JSON.stringify(options.body);
     }
-    const resp = await fetch(url, options);
-    const data = await resp.json();
-    if (!resp.ok || data.error) {
-        throw new Error(data.error || data.message || `HTTP ${resp.status}`);
+
+    var lastError;
+    for (var attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            var resp = await fetch(url, options);
+            var data = await resp.json();
+            if (!resp.ok || data.error) {
+                throw new Error(data.error || data.message || 'HTTP ' + resp.status);
+            }
+            return data;
+        } catch (e) {
+            lastError = e;
+            if (attempt < maxRetries) {
+                await new Promise(function(r) { setTimeout(r, 1000 * (attempt + 1)); });
+            }
+        }
     }
-    return data;
+    throw lastError;
 }
 
 function escapeHtml(text) {
