@@ -11,9 +11,14 @@ from config import load_config, save_config, load_passwords, save_password
 from ipa_client import IPAClient, generate_password
 from xlsx_parser import parse_xlsx, generate_uid
 from mail_service import send_credentials, test_mail_connection
+import mail_queue
+import glpi_client
 
 app = Flask(__name__)
 app.secret_key = os.urandom(32)
+
+# Start background mail worker (idempotent)
+mail_queue.start_worker()
 
 LOCKS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'locks.json')
 
@@ -103,7 +108,8 @@ def sync_page():
         return redirect(url_for('settings'))
     return render_template('sync.html',
                            target_group=cfg.get('target_group', 'employees'),
-                           xlsx_hint=cfg.get('xlsx_hint', ''))
+                           xlsx_hint=cfg.get('xlsx_hint', ''),
+                           glpi_auto_sync=bool(cfg.get('glpi_auto_sync') and cfg.get('glpi_ssh_host')))
 
 
 @app.route('/settings')
@@ -440,6 +446,11 @@ def api_sync_apply():
         results = {'applied': [], 'errors': []}
         locks = _load_locks()
 
+        created_uids = []
+        updated_uids = []
+        deleted_uids = []
+        queued_mails = 0
+
         # Updates
         for upd in data.get('updates', []):
             uid = upd['uid']
@@ -449,6 +460,7 @@ def api_sync_apply():
             kwargs = {k: v['new'] for k, v in changes.items()}
             try:
                 ipa.user_mod(uid, **kwargs)
+                updated_uids.append(uid)
                 results['applied'].append({'action': 'update', 'uid': uid})
             except Exception as e:
                 results['errors'].append({'action': 'update', 'uid': uid, 'error': str(e)})
@@ -471,14 +483,13 @@ def api_sync_apply():
                     pass
 
                 save_password(uid, password)
+                created_uids.append(uid)
 
-                # Auto-send if enabled
+                # Auto-send via queue (mass operation → rate-limited)
                 if cfg.get('auto_send_credentials') and cfg.get('mail_server') and d.get('mail'):
-                    try:
-                        send_credentials(cfg, d['mail'], uid, password, d.get('cn', ''),
-                                         scenario='new_user')
-                    except Exception:
-                        pass
+                    if mail_queue.enqueue(d['mail'], uid, password,
+                                          d.get('cn', ''), scenario='new_user'):
+                        queued_mails += 1
 
                 results['applied'].append({
                     'action': 'create', 'uid': uid, 'password': password,
@@ -494,13 +505,24 @@ def api_sync_apply():
             try:
                 ipa.user_del(uid)
                 locks.pop(uid, None)
+                deleted_uids.append(uid)
                 results['applied'].append({'action': 'delete', 'uid': uid})
             except Exception as e:
                 results['errors'].append({'action': 'delete', 'uid': uid, 'error': str(e)})
 
         _save_locks(locks)
+
+        if queued_mails:
+            results['mail_queued'] = queued_mails
+            results['mail_queue_total'] = mail_queue.get_queue_size()
+
+        # GLPI sync is NOT run here. The frontend calls /api/glpi/sync as a
+        # separate step after all batches complete, so it appears as its own
+        # phase in the progress bar.
+
         return jsonify(results)
     except Exception as e:
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 
@@ -544,6 +566,71 @@ def api_test_mail():
         return jsonify({'ok': False, 'message': msg}), 400
     except Exception as e:
         return jsonify({'ok': False, 'message': str(e)}), 400
+
+
+@app.route('/api/settings/test-glpi', methods=['POST'])
+def api_test_glpi():
+    try:
+        ok, msg = glpi_client.test_connection(request.json or {})
+        if ok:
+            return jsonify({'ok': True, 'message': msg or 'Подключение успешно'})
+        return jsonify({'ok': False, 'message': msg}), 400
+    except Exception as e:
+        return jsonify({'ok': False, 'message': str(e)}), 400
+
+
+# ------------------------------------------------------------------
+# API — Mail queue
+# ------------------------------------------------------------------
+
+@app.route('/api/mail/queue')
+def api_mail_queue():
+    queue = mail_queue.get_queue()
+    return jsonify({
+        'size': len(queue),
+        'items': [
+            {
+                'email': it.get('email'),
+                'uid': it.get('uid'),
+                'scenario': it.get('scenario'),
+                'retries': it.get('retries', 0),
+                'next_at': it.get('next_at'),
+                'enqueued_at': it.get('enqueued_at'),
+            }
+            for it in queue
+        ],
+    })
+
+
+@app.route('/api/mail/queue/clear', methods=['POST'])
+def api_mail_queue_clear():
+    mail_queue.clear_queue()
+    return jsonify({'ok': True})
+
+
+# ------------------------------------------------------------------
+# API — GLPI manual sync
+# ------------------------------------------------------------------
+
+@app.route('/api/glpi/sync', methods=['POST'])
+def api_glpi_sync():
+    """Manually trigger GLPI's LDAP sync."""
+    try:
+        cfg = load_config()
+        if not cfg.get('glpi_url'):
+            return jsonify({'error': 'GLPI не настроен'}), 400
+        data = request.json or {}
+        result = glpi_client.trigger_sync(
+            cfg,
+            created_uids=data.get('created', []),
+            updated_uids=data.get('updated', []),
+            deleted_uids=data.get('deleted', []),
+        )
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 
 
 # ------------------------------------------------------------------

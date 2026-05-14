@@ -25,22 +25,23 @@ echo "[3/5] Copying application files..."
 mkdir -p "$APP_DIR"
 
 # Save existing data files before overwrite
-for f in config.json locks.json passwords.json; do
+for f in config.json locks.json passwords.json mail_queue.json; do
     [ -f "$APP_DIR/$f" ] && cp "$APP_DIR/$f" "/tmp/_um_$f" 2>/dev/null || true
 done
 
 cp -r app.py config.py ipa_client.py xlsx_parser.py mail_service.py \
+      mail_queue.py glpi_client.py \
       requirements.txt templates/ static/ deploy.sh uninstall.sh "$APP_DIR/"
 
 # Restore data files
-for f in config.json locks.json passwords.json; do
+for f in config.json locks.json passwords.json mail_queue.json; do
     [ -f "/tmp/_um_$f" ] && mv "/tmp/_um_$f" "$APP_DIR/$f" && echo "  Restored: $f"
 done
 
 # Restore backup from uninstall if exists and no current data
 BACKUP_DIR="/opt/user-manager-backup"
 if [ -d "$BACKUP_DIR" ]; then
-    for f in config.json locks.json passwords.json; do
+    for f in config.json locks.json passwords.json mail_queue.json; do
         if [ ! -f "$APP_DIR/$f" ] && [ -f "$BACKUP_DIR/$f" ]; then
             cp "$BACKUP_DIR/$f" "$APP_DIR/$f"
             echo "  Restored from backup: $f"

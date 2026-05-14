@@ -79,10 +79,18 @@
                         <strong>Автоматически отправлять данные авторизации при создании учётной записи</strong>
                     </label>
                 </div>
-                <div class="d-flex gap-2">
+                <div class="mb-3">
+                    <label class="form-label">Задержка между отправками писем, сек</label>
+                    <input type="number" class="form-control" id="cfg-mail-delay" value="{{ config.mail_send_delay }}" min="0" max="3600">
+                    <div class="form-text">При массовом создании учёток письма идут через очередь с такой паузой, чтобы не сработали антиспам-фильтры почтового сервера.</div>
+                </div>
+                <div class="d-flex gap-2 flex-wrap">
                     <button class="btn btn-outline-primary" onclick="testMail()">
                         <i class="bi bi-plug me-1"></i>Проверить подключение
                     </button>
+                    <a class="btn btn-outline-secondary" href="#" onclick="showMailQueue(event)">
+                        <i class="bi bi-list-ul me-1"></i>Очередь: <span id="mail-queue-badge">—</span>
+                    </a>
                     <span id="mail-test-result"></span>
                 </div>
             </div>
@@ -155,10 +163,107 @@
     </div>
 </div>
 
+<div class="row">
+    <!-- GLPI integration -->
+    <div class="col-12 mb-4">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-link-45deg me-1"></i>Интеграция с GLPI</div>
+            <div class="card-body">
+                <p class="text-muted small mb-3">
+                    Приложение подключается к серверу GLPI по SSH и запускает встроенную CLI-команду
+                    <code>glpi:ldap:synchronize_users</code>. GLPI сам читает из FreeIPA и применяет
+                    изменения (создаёт новых, обновляет атрибуты, удаляет ушедших согласно настройке
+                    AuthLDAP <em>«Поведение для удалённых в LDAP пользователей»</em>).
+                </p>
+                <div class="row">
+                    <div class="col-md-7 mb-3">
+                        <label class="form-label">SSH хост GLPI</label>
+                        <input type="text" class="form-control" id="cfg-glpi-ssh-host" value="{{ config.glpi_ssh_host }}" placeholder="glpi.example.com">
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label">Порт</label>
+                        <input type="number" class="form-control" id="cfg-glpi-ssh-port" value="{{ config.glpi_ssh_port }}" min="1" max="65535">
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">ID LDAP-сервера</label>
+                        <input type="number" class="form-control" id="cfg-glpi-auths-id" value="{{ config.glpi_auths_id }}" min="1">
+                        <div class="form-text">Поле <code>--ldap-server-id</code></div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">SSH пользователь</label>
+                        <input type="text" class="form-control" id="cfg-glpi-ssh-user" value="{{ config.glpi_ssh_user }}" placeholder="root">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Пароль / passphrase</label>
+                        <input type="password" class="form-control" id="cfg-glpi-ssh-password" value="{{ config.glpi_ssh_password }}">
+                        <div class="form-text">Пароль SSH или passphrase для ключа</div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Путь к приватному ключу</label>
+                        <input type="text" class="form-control" id="cfg-glpi-ssh-key-path" value="{{ config.glpi_ssh_key_path }}" placeholder="/opt/user-manager/keys/glpi_id_ed25519">
+                        <div class="form-text">Если задан — используется ключ, не пароль</div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">CLI команда</label>
+                    <textarea class="form-control font-monospace" id="cfg-glpi-ssh-command" rows="2">{{ config.glpi_ssh_command }}</textarea>
+                    <div class="form-text">
+                        Плейсхолдер <code>{auths_id}</code> подставится автоматически.
+                        Флаг <code>--no-interaction</code> обязателен — иначе CLI зависнет на вопросе «Желаете продолжить?».
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Таймаут команды, сек</label>
+                        <input type="number" class="form-control" id="cfg-glpi-ssh-timeout" value="{{ config.glpi_ssh_timeout }}" min="30" max="3600">
+                    </div>
+                </div>
+                <div class="form-check mb-3">
+                    <input type="checkbox" class="form-check-input" id="cfg-glpi-auto-sync" {% if config.glpi_auto_sync %}checked{% endif %}>
+                    <label class="form-check-label" for="cfg-glpi-auto-sync">
+                        <strong>Автоматически запускать LDAP-sync GLPI после применения изменений</strong>
+                    </label>
+                </div>
+                <div class="d-flex gap-2 flex-wrap">
+                    <button class="btn btn-outline-primary" onclick="testGLPI()">
+                        <i class="bi bi-plug me-1"></i>Проверить SSH
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="runGLPISync()">
+                        <i class="bi bi-arrow-repeat me-1"></i>Запустить синхронизацию сейчас
+                    </button>
+                    <span id="glpi-test-result"></span>
+                </div>
+                <pre id="glpi-output" class="mt-3 small" style="display:none;white-space:pre-wrap;max-height:400px;overflow:auto;background:#f8f9fa;padding:0.5rem;border:1px solid #dee2e6;border-radius:4px"></pre>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="d-flex justify-content-end mb-4">
     <button class="btn btn-primary btn-lg" onclick="saveSettings()">
         <i class="bi bi-save me-1"></i>Сохранить настройки
     </button>
+</div>
+
+<!-- Mail queue modal -->
+<div class="modal fade" id="mailQueueModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-envelope me-1"></i>Очередь отправки писем</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="mail-queue-body" class="text-muted">Загрузка...</div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline-danger" onclick="clearMailQueue()">
+                    <i class="bi bi-trash me-1"></i>Очистить очередь
+                </button>
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 

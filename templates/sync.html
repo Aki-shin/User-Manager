@@ -196,5 +196,6 @@
 {% endblock %}
 
 {% block scripts %}
+<script>window.GLPI_AUTO_SYNC = {% if glpi_auto_sync %}true{% else %}false{% endif %};</script>
 <script src="{{ url_for('static', filename='js/sync.js') }}"></script>
 {% endblock %}

@@ -22,7 +22,7 @@ if [ "$KEEP_DATA" = "y" ] || [ "$KEEP_DATA" = "Y" ]; then
     echo "[3/4] Removing application (keeping data)..."
     BACKUP_DIR="/opt/user-manager-backup"
     mkdir -p "$BACKUP_DIR"
-    for f in config.json locks.json passwords.json; do
+    for f in config.json locks.json passwords.json mail_queue.json; do
         [ -f "$APP_DIR/$f" ] && cp "$APP_DIR/$f" "$BACKUP_DIR/$f" && echo "  Saved: $BACKUP_DIR/$f"
     done
     rm -rf "$APP_DIR"

@@ -16,6 +16,7 @@ DEFAULT_CONFIG = {
     'mail_password': '',
     'mail_from': '',
     'auto_send_credentials': False,
+    'mail_send_delay': 30,
     'password_length': 8,
     'password_charset': 'digits',
     'mail_template_new_user_subject': 'Данные для входа в систему',
@@ -26,6 +27,18 @@ DEFAULT_CONFIG = {
         'Пароль: {password}\n\n'
         'Пожалуйста, смените пароль при первом входе.'
     ),
+    'glpi_ssh_host': '',
+    'glpi_ssh_port': 22,
+    'glpi_ssh_user': '',
+    'glpi_ssh_password': '',
+    'glpi_ssh_key_path': '',
+    'glpi_ssh_command': (
+        'sudo -u www-data php /var/www/html/glpi/bin/console '
+        'glpi:ldap:synchronize_users --ldap-server-id={auths_id} --no-interaction'
+    ),
+    'glpi_ssh_timeout': 600,
+    'glpi_auths_id': 1,
+    'glpi_auto_sync': False,
     'xlsx_hint': (
         'Файл XLSX должен содержать следующие столбцы:\n'
         '\n'

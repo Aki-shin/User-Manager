@@ -366,6 +366,17 @@ function buildBatchPayload(ops) {
     return payload;
 }
 
+function uidsFromOps(ops, type) {
+    var out = [];
+    for (var i = 0; i < ops.length; i++) {
+        if (ops[i].type !== type) continue;
+        var it = ops[i].item;
+        var uid = it.uid || (it.data && it.data.uid);
+        if (uid) out.push(uid);
+    }
+    return out;
+}
+
 async function applySync() {
     if (!confirm('Применить выбранные изменения к FreeIPA?')) return;
 
@@ -385,23 +396,39 @@ async function applySync() {
     var doneOps = 0;
     var allApplied = [];
     var allErrors = [];
+    var aggMailQueued = 0;
+    var aggMailQueueTotal = 0;
+    var glpiResult = null;
+    var glpiError = null;
+
+    // Pre-compute aggregates so the final batch can hand them to backend
+    var allCreatedUids = uidsFromOps(allOps, 'create');
+    var allUpdatedUids = uidsFromOps(allOps, 'update');
+    var allDeletedUids = uidsFromOps(allOps, 'delete');
+
+    // Pre-compute whether GLPI sync phase will run
+    var willRunGlpi = window.GLPI_AUTO_SYNC &&
+        (allCreatedUids.length + allUpdatedUids.length + allDeletedUids.length) > 0;
+    var phasePrefix = willRunGlpi ? 'Шаг 1/2: ' : '';
 
     // Show progress, hide apply button
     document.getElementById('sync-progress').style.display = '';
     document.getElementById('apply-results').style.display = 'none';
     document.getElementById('apply-section').style.display = 'none';
-    updateProgress(0, totalOps, 'Отправка пакета 1 из ' + batches.length + '...');
+    updateProgress(0, totalOps, phasePrefix + 'Отправка пакета 1 из ' + batches.length + '...');
 
     for (var b = 0; b < batches.length; b++) {
         var batch = batches[b];
         var payload = buildBatchPayload(batch);
 
-        updateProgress(doneOps, totalOps, 'Пакет ' + (b + 1) + ' из ' + batches.length + '...');
+        updateProgress(doneOps, totalOps, phasePrefix + 'Пакет ' + (b + 1) + ' из ' + batches.length + '...');
 
         try {
             var result = await api('/api/sync/apply', { method: 'POST', body: payload });
             if (result.applied) allApplied = allApplied.concat(result.applied);
             if (result.errors) allErrors = allErrors.concat(result.errors);
+            if (typeof result.mail_queued === 'number') aggMailQueued += result.mail_queued;
+            if (typeof result.mail_queue_total === 'number') aggMailQueueTotal = result.mail_queue_total;
         } catch (err) {
             // Mark all ops in this batch as errors
             for (var j = 0; j < batch.length; j++) {
@@ -414,15 +441,53 @@ async function applySync() {
         }
 
         doneOps += batch.length;
-        updateProgress(doneOps, totalOps, 'Пакет ' + (b + 1) + ' из ' + batches.length + ' — готово');
+        updateProgress(doneOps, totalOps, phasePrefix + 'Пакет ' + (b + 1) + ' из ' + batches.length + ' — готово');
     }
 
-    // Done
-    updateProgress(totalOps, totalOps, 'Завершено');
+    // Batches done
+    updateProgress(totalOps, totalOps, willRunGlpi ? 'Шаг 1/2: Все пакеты применены' : 'Завершено');
+
+    // GLPI step — separate phase, only if auto-sync enabled and something changed
+    var hasChanges = allCreatedUids.length + allUpdatedUids.length + allDeletedUids.length;
+    if (window.GLPI_AUTO_SYNC && hasChanges) {
+        var bar = document.getElementById('progress-bar');
+        var pctEl = document.getElementById('progress-percent');
+        var labelEl = document.getElementById('progress-label');
+        var detailEl = document.getElementById('progress-detail');
+        if (bar) bar.style.width = '100%';
+        if (pctEl) pctEl.textContent = '⏳';
+        if (labelEl) labelEl.textContent = 'Шаг 2/2: Запуск LDAP-синхронизации GLPI...';
+        if (detailEl) detailEl.textContent = 'CLI-команда на сервере GLPI (может занять минуту)';
+
+        try {
+            glpiResult = await api('/api/glpi/sync', {
+                method: 'POST',
+                body: {
+                    created: allCreatedUids,
+                    updated: allUpdatedUids,
+                    deleted: allDeletedUids,
+                },
+            });
+        } catch (err) {
+            glpiError = err.message;
+        }
+
+        if (labelEl) labelEl.textContent = 'LDAP-синхронизация GLPI завершена';
+        if (pctEl) pctEl.textContent = '100%';
+    }
+
+    // All done
     document.getElementById('sync-progress').style.display = 'none';
     document.getElementById('apply-section').style.display = '';
 
-    renderApplyResults({ applied: allApplied, errors: allErrors });
+    renderApplyResults({
+        applied: allApplied,
+        errors: allErrors,
+        mail_queued: aggMailQueued,
+        mail_queue_total: aggMailQueueTotal,
+        glpi: glpiResult,
+        glpi_error: glpiError,
+    });
 }
 
 function renderApplyResults(result) {
@@ -431,7 +496,7 @@ function renderApplyResults(result) {
     var html = '';
 
     if (result.applied && result.applied.length) {
-        html += '<h6 class="text-success">Успешно:</h6><ul>';
+        html += '<h6 class="text-success"><i class="bi bi-check-circle me-1"></i>FreeIPA — успешно (' + result.applied.length + '):</h6><ul>';
         result.applied.forEach(function(a) {
             var desc = a.action + ': ' + a.uid;
             if (a.password) desc += ' (пароль: <code>' + escapeHtml(a.password) + '</code>)';
@@ -441,14 +506,74 @@ function renderApplyResults(result) {
     }
 
     if (result.errors && result.errors.length) {
-        html += '<h6 class="text-danger">Ошибки:</h6><ul>';
+        html += '<h6 class="text-danger"><i class="bi bi-x-circle me-1"></i>FreeIPA — ошибки (' + result.errors.length + '):</h6><ul>';
         result.errors.forEach(function(e) {
-            html += '<li>' + e.action + ': ' + e.uid + ' — ' + escapeHtml(e.error) + '</li>';
+            html += '<li>' + e.action + ': ' + escapeHtml(e.uid) + ' — ' + escapeHtml(e.error) + '</li>';
         });
         html += '</ul>';
     }
 
-    if ((!result.applied || !result.applied.length) && (!result.errors || !result.errors.length)) {
+    // Mail queue summary
+    if (result.mail_queued) {
+        html += '<div class="alert alert-info py-2 mb-2">' +
+            '<i class="bi bi-envelope me-1"></i>' +
+            'В очередь отправки добавлено писем: <strong>' + result.mail_queued + '</strong>' +
+            (result.mail_queue_total ? ' (всего в очереди: ' + result.mail_queue_total + ')' : '') +
+            '. Письма уходят с интервалом, заданным в настройках.' +
+        '</div>';
+    }
+
+    // GLPI summary
+    if (result.glpi || result.glpi_error) {
+        var gHtml = '';
+        var g = result.glpi;
+        if (g) {
+            var p = g.parsed || {};
+            var summary = [];
+            if ('imported' in p) summary.push('импортировано: <strong>' + p.imported + '</strong>');
+            if ('synced' in p) summary.push('синхронизировано: <strong>' + p.synced + '</strong>');
+            if ('deleted' in p) summary.push('удалено: <strong>' + p.deleted + '</strong>');
+            if ('restored' in p) summary.push('восстановлено: <strong>' + p.restored + '</strong>');
+
+            var affectedIpa = (g.created_in_ipa || []).length +
+                              (g.updated_in_ipa || []).length +
+                              (g.deleted_in_ipa || []).length;
+            gHtml += '<div class="small text-muted">Затронуто uid в FreeIPA: <strong>' + affectedIpa + '</strong></div>';
+
+            if (summary.length) {
+                gHtml += '<div class="small">GLPI: ' + summary.join(', ') + '</div>';
+            }
+
+            if (typeof g.exit_code === 'number') {
+                var cls = (g.exit_code === 0) ? 'text-success' : 'text-danger';
+                gHtml += '<div class="small ' + cls + '">CLI exit code: ' + g.exit_code + '</div>';
+            }
+
+            if (g.command) {
+                gHtml += '<details class="small mt-1"><summary>Команда</summary><pre class="mb-0" style="white-space:pre-wrap;font-size:0.8rem">' + escapeHtml(g.command) + '</pre></details>';
+            }
+            if (g.stdout) {
+                gHtml += '<details class="small mt-1"><summary>stdout</summary><pre class="mb-0" style="white-space:pre-wrap;font-size:0.8rem;max-height:300px;overflow:auto">' + escapeHtml(g.stdout) + '</pre></details>';
+            }
+            if (g.stderr) {
+                gHtml += '<details class="small mt-1"><summary>stderr</summary><pre class="mb-0" style="white-space:pre-wrap;font-size:0.8rem;max-height:200px;overflow:auto">' + escapeHtml(g.stderr) + '</pre></details>';
+            }
+            if (g.errors && g.errors.length) {
+                gHtml += '<div class="text-danger small mt-2">Ошибки (' + g.errors.length + '):<ul class="mb-0">';
+                g.errors.forEach(function(e) {
+                    gHtml += '<li>' + escapeHtml(e.error) + '</li>';
+                });
+                gHtml += '</ul></div>';
+            }
+        }
+        if (result.glpi_error) {
+            gHtml += '<div class="text-danger small mt-2">' + escapeHtml(result.glpi_error) + '</div>';
+        }
+        if (!gHtml) gHtml = '<div class="text-muted small">GLPI: нет данных</div>';
+        html += '<div class="card mt-3"><div class="card-header py-1 bg-light"><i class="bi bi-terminal me-1"></i>Синхронизация с GLPI (SSH)</div><div class="card-body py-2">' + gHtml + '</div></div>';
+    }
+
+    if (!html) {
         html = '<p class="text-muted">Нет операций для выполнения.</p>';
     }
 
