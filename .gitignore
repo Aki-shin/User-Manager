@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+build/
+dist/
+
+# Виртуальные окружения
+venv/
+.venv/
+env/
+
+# Данные приложения — создаются во время работы, содержат пароли
+config.json
+passwords.json
+locks.json
+mail_queue.json
+
+# SSH-ключи для интеграции с GLPI
+keys/
+*.pem
+id_rsa
+id_ed25519
+*.ppk
+
+# Загружаемые файлы с данными сотрудников
+*.xlsx
+*.xls
+
+# Переменные окружения
+.env
+.env.*
+
+# IDE, редакторы и инструментарий
+.vscode/
+.idea/
+.claude/
+*.swp
+*~
+
+# ОС
+.DS_Store
+Thumbs.db
