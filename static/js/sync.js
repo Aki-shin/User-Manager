@@ -211,6 +211,7 @@ function renderSyncResults(skipSaveState) {
                 '<td>' + escapeHtml(d.cn) + '</td>' +
                 '<td>' + escapeHtml(d.mail) + '</td>' +
                 '<td>' + escapeHtml(d.telephonenumber) + '</td>' +
+                '<td>' + escapeHtml(d.mobile) + '</td>' +
                 '<td>' + escapeHtml(d.title) + '</td>' +
                 '<td>' + escapeHtml(d.ou) + '</td>' +
                 '<td>' + escapeHtml(d.employeenumber) + '</td>' +
@@ -235,7 +236,10 @@ function renderSyncResults(skipSaveState) {
                 '<td>' + escapeHtml(d.code) + '</td>' +
                 '<td>' + escapeHtml(d.current.cn) + '</td>' +
                 '<td>' + escapeHtml(d.current.mail) + '</td>' +
+                '<td>' + escapeHtml(d.current.telephonenumber) + '</td>' +
+                '<td>' + escapeHtml(d.current.mobile) + '</td>' +
                 '<td>' + escapeHtml(d.current.title) + '</td>' +
+                '<td>' + escapeHtml(d.current.ou) + '</td>' +
                 '<td>' + (d.locked ? '<i class="bi bi-lock-fill text-danger" title="Заблокирован"></i>' : '') + '</td>' +
             '</tr>';
         }).join('');
